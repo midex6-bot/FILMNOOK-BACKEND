@@ -23,7 +23,7 @@ def extract_video(data: dict):
     cookies_path = os.path.join(current_dir, "cookies.txt.txt")
     
     ydl_opts = {
-        'format': 'best',
+        'format': 'bestvideo+bestaudio/best',
         'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
         'quiet': True,
         'no_warnings': True,
