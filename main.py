@@ -5,8 +5,6 @@ import yt_dlp
 
 app = FastAPI()
 
-app.app_add_middleware if hasattr(app, 'app_add_middleware') else None # placeholder safety
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,15 +19,23 @@ def extract_video(data: dict):
     if not video_url:
         raise HTTPException(status_code=400, detail="URL is required")
     
-    # Point directly to cookies.txt in the same folder as main.py
-    cookies_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
+    # Check what files are actually in the folder on Render
+    current_dir = os.path.dirname(__file__)
+    files_in_dir = os.listdir(current_dir)
+    cookies_path = os.path.join(current_dir, "cookies.txt")
+    
+    print("Files currently on Render server:", files_in_dir)
+    
+    if not os.path.exists(cookies_path):
+        raise HTTPException(
+            status_code=500, 
+            detail=f"cookies.txt is missing on the server! Files found: {files_in_dir}"
+        )
     
     ydl_opts = {
         'format': 'best',
+        'cookiefile': cookies_path
     }
-    
-    if os.path.exists(cookies_path):
-        ydl_opts['cookiefile'] = cookies_path
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
