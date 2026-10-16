@@ -19,23 +19,16 @@ def extract_video(data: dict):
     if not video_url:
         raise HTTPException(status_code=400, detail="URL is required")
     
-    # Check what files are actually in the folder on Render
     current_dir = os.path.dirname(__file__)
-    files_in_dir = os.listdir(current_dir)
-    cookies_path = os.path.join(current_dir, "cookies.txt")
-    
-    print("Files currently on Render server:", files_in_dir)
-    
-    if not os.path.exists(cookies_path):
-        raise HTTPException(
-            status_code=500, 
-            detail=f"cookies.txt is missing on the server! Files found: {files_in_dir}"
-        )
+    # Point directly to cookies.txt.txt
+    cookies_path = os.path.join(current_dir, "cookies.txt.txt")
     
     ydl_opts = {
         'format': 'best',
-        'cookiefile': cookies_path
     }
+    
+    if os.path.exists(cookies_path):
+        ydl_opts['cookiefile'] = cookies_path
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
