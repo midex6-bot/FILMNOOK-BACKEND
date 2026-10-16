@@ -20,11 +20,13 @@ def extract_video(data: dict):
         raise HTTPException(status_code=400, detail="URL is required")
     
     current_dir = os.path.dirname(__file__)
-    # Point directly to cookies.txt.txt
     cookies_path = os.path.join(current_dir, "cookies.txt.txt")
     
     ydl_opts = {
         'format': 'best',
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'quiet': True,
+        'no_warnings': True,
     }
     
     if os.path.exists(cookies_path):
