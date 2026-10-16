@@ -19,7 +19,11 @@ def extract_video(data: dict):
         raise HTTPException(status_code=400, detail="URL is required")
     
     try:
-        ydl_opts = {'format': 'best'}
+        ydl_opts = {
+            'format': 'best',
+            'cookiefile': 'cookies.txt'
+        }
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             meta = ydl.extract_info(video_url, download=False)
             
