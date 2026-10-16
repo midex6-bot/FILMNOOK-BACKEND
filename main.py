@@ -13,10 +13,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CONFIGURATION ---
-SUPABASE_URL = "https://your-project-id.supabase.co"
-SUPABASE_KEY = "your-supabase-service-role-key"
-TMDB_API_KEY = "your-tmdb-api-key"
+# --- YOUR KEYS ---
+SUPABASE_URL = "https://giuljgypjtppmntyfcms.supabase.co"
+SUPABASE_KEY = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdWxqZ3lwanRwcG1udHlmY21zIiwicm9sZSI6"
+    "ImFub24iLCJpYXQiOjE3OTIxNDQ4NTcsImV4cCI6MjEwNzcyMDg1N30."
+    "rgyFrIsST-FYFciVX3sUwqM4vz50Pf7PIhtq7r97VU0"
+)
+TMDB_API_KEY = "4339b7f88c39cddd3d923ad8822e9ea5"
 
 
 def get_tmdb_data(title):
@@ -47,41 +52,17 @@ def get_tmdb_data(title):
   return {}
 
 
-def extract_video_metadata(url):
-  """Uses a reliable external extraction service/API wrapper instead of yt-dlp to avoid all IP blocks."""
-  try:
-    # Example using a public/stable extraction API endpoint (or you can plug in any rapidapi video extractor endpoint here)
-    # For demonstration, we use a robust public fetch pattern
-    api_url = f"https://co.wuk.sh/api/json"  # Example open-source downloader API backend (like Cobalt)
-    headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    payload = {"url": url, "vCodec": "h264", "quality": "720"}
-
-    response = requests.post(api_url, json=payload, headers=headers)
-    if response.status_code == 200:
-      data = response.json()
-      if data.get("status") == "stream" or data.get("url"):
-        return {
-            "title": data.get("filename", "Extracted Movie"),
-            "duration": 0,  # Default if not provided by wrapper
-            "stream_url": data.get("url"),
-        }
-  except Exception as e:
-    print(f"External API extraction error: {e}")
-
-  # Fallback fallback wrapper simulation if primary API fails
-  return {
-      "title": "Movie Ingestion " + url.split("v=")[-1],
-      "duration": 0,
-      "stream_url": url,  # Fallback to direct URL or iframe source if needed
-  }
-
-
 @app.post("/smart-ingest")
+@app.post("/extract")
 def smart_ingest(data: dict):
+  # Support both 'url' (from your swagger test) and 'urls' or 'items'
+  single_url = data.get("url")
   urls = data.get("urls", [])
   queued_items = data.get("items", [])
 
   targets = []
+  if single_url:
+    targets.append(single_url)
   if urls:
     if isinstance(urls, str):
       targets.append(urls)
@@ -99,19 +80,31 @@ def smart_ingest(data: dict):
 
   for target_url in targets:
     try:
-      # Extract metadata cleanly without yt-dlp blocks
-      video_info = extract_video_metadata(target_url)
-      title = video_info.get("title")
-      stream_url = video_info.get("stream_url")
-      duration = video_info.get("duration")
+      # Use clean fallback metadata extraction without triggering yt-dlp bot blocks
+      # We extract the video ID if it's a YouTube link to form a clean embed/stream fallback
+      video_id = target_url.split("v=")[-1].split("&")[0]
 
-      # Fetch TMDB poster and metadata
+      # Fetch title & metadata using oEmbed (completely public and never blocked by YouTube)
+      oembed_url = (
+          f"https://www.youtube.com/oembed?url={target_url}&format=json"
+      )
+      oembed_res = requests.get(oembed_url)
+
+      if oembed_res.status_code == 200:
+        oembed_data = oembed_res.json()
+        title = oembed_data.get("title", f"FilmNook Movie {video_id}")
+      else:
+        title = f"Movie {video_id}"
+
+      stream_url = target_url  # Clean reference URL for your frontend player
+
+      # Fetch TMDB poster and description
       tmdb_data = get_tmdb_data(title)
 
-      # Build payload for Supabase
+      # Save directly to Supabase
       payload = {
           "title": title,
-          "duration": duration,
+          "duration": 0,
           "stream_url": stream_url,
           "poster_url": tmdb_data.get("poster_url"),
           "backdrop_url": tmdb_data.get("backdrop_url"),
