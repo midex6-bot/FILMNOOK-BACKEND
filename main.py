@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- YOUR KEYS ---
+# --- SUPABASE & TMDB CONFIGURATION ---
 SUPABASE_URL = "https://giuljgypjtppmntyfcms.supabase.co"
 SUPABASE_KEY = (
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
@@ -55,7 +55,6 @@ def get_tmdb_data(title):
 @app.post("/smart-ingest")
 @app.post("/extract")
 def smart_ingest(data: dict):
-  # Support both 'url' (from your swagger test) and 'urls' or 'items'
   single_url = data.get("url")
   urls = data.get("urls", [])
   queued_items = data.get("items", [])
@@ -80,31 +79,27 @@ def smart_ingest(data: dict):
 
   for target_url in targets:
     try:
-      # Use clean fallback metadata extraction without triggering yt-dlp bot blocks
-      # We extract the video ID if it's a YouTube link to form a clean embed/stream fallback
-      video_id = target_url.split("v=")[-1].split("&")[0]
-
-      # Fetch title & metadata using oEmbed (completely public and never blocked by YouTube)
+      # 1. Get clean title via YouTube oEmbed (Never blocked on cloud servers)
       oembed_url = (
           f"https://www.youtube.com/oembed?url={target_url}&format=json"
       )
-      oembed_res = requests.get(oembed_url)
+      oembed_res = requests.get(oembed_url, timeout=5)
 
       if oembed_res.status_code == 200:
         oembed_data = oembed_res.json()
-        title = oembed_data.get("title", f"FilmNook Movie {video_id}")
+        title = oembed_data.get("title", "FilmNook Feature Film")
       else:
-        title = f"Movie {video_id}"
+        title = "FilmNook Feature Film"
 
-      stream_url = target_url  # Clean reference URL for your frontend player
+      stream_url = target_url
 
-      # Fetch TMDB poster and description
+      # 2. Fetch matching poster and description from TMDB
       tmdb_data = get_tmdb_data(title)
 
-      # Save directly to Supabase
+      # 3. Push directly into your Supabase database table using correct Python f-string
       payload = {
           "title": title,
-          "duration": 0,
+          "duration": 120,
           "stream_url": stream_url,
           "poster_url": tmdb_data.get("poster_url"),
           "backdrop_url": tmdb_data.get("backdrop_url"),
@@ -118,15 +113,18 @@ def smart_ingest(data: dict):
           "Content-Type": "application/json",
           "Prefer": "return=minimal",
       }
+
       db_res = requests.post(
           f"{SUPABASE_URL}/rest/v1/movies", json=payload, headers=headers
       )
 
       if db_res.status_code in [200, 201]:
-        results.append({"title": title, "status": "success"})
+        results.append(
+            {"title": title, "status": "success", "stream_url": stream_url}
+        )
       else:
         results.append(
-            {"title": title, "status": "db_error", "detail": db_res.text}
+            {"target": target_url, "status": "db_error", "detail": db_res.text}
         )
 
     except Exception as e:
