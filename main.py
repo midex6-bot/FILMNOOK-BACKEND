@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import subprocess
-import json
+import yt_dlp
 
 app = FastAPI()
 
@@ -20,20 +19,15 @@ def extract_video(data: dict):
         raise HTTPException(status_code=400, detail="URL is required")
     
     try:
-        # Changed "python" to "python3" for Linux/Render compatibility
-        command = ["python3", "-m", "yt-dlp", "-j", video_url]
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        meta = json.loads(result.stdout)
-        
-        return {
-            "success": True,
-            "title": meta.get("title"),
-            "duration": meta.get("duration"),
-            "stream url": meta.get("url"),
-        }
-    except subprocess.CalledProcessError as e:
-        error_msg = e.stderr.strip() if e.stderr else str(e)
-        raise HTTPException(status_code=500, detail=f"yt-dlp execution error: {error_msg}")
+        ydl_opts = {'format': 'best'}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            meta = ydl.extract_info(video_url, download=False)
+            
+            return {
+                "success": True,
+                "title": meta.get("title"),
+                "duration": meta.get("duration"),
+                "stream url": meta.get("url"),
+            }
     except Exception as e:
-        # This catches missing python3 or any other unexpected crash
-        raise HTTPException(status_code=500, detail=f"Server internal error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Extraction error: {str(e)}")
