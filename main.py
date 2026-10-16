@@ -1,8 +1,11 @@
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import yt_dlp
 
 app = FastAPI()
+
+app.app_add_middleware if hasattr(app, 'app_add_middleware') else None # placeholder safety
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,12 +21,17 @@ def extract_video(data: dict):
     if not video_url:
         raise HTTPException(status_code=400, detail="URL is required")
     
+    # Point directly to cookies.txt in the same folder as main.py
+    cookies_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
+    
+    ydl_opts = {
+        'format': 'best',
+    }
+    
+    if os.path.exists(cookies_path):
+        ydl_opts['cookiefile'] = cookies_path
+    
     try:
-        ydl_opts = {
-            'format': 'best',
-            'cookiefile': 'cookies.txt'
-        }
-        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             meta = ydl.extract_info(video_url, download=False)
             
