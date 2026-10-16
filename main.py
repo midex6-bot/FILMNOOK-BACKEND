@@ -1,28 +1,34 @@
-class VideoRequest(BaseModel):
-    url: str
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import subprocess
+import json
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/extract")
-def extract_video(data: VideoRequest):
-    if not data.url:
+def extract_video(data: dict):
+    video_url = data.get("url")
+    if not video_url:
         raise HTTPException(status_code=400, detail="URL is required")
-
     try:
-        ydl_opts = {
-            "skip_download": True,
-            "format": "best",  # Tries to fetch a single playable format
-            "quiet": True,
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            meta = ydl.extract_info(data.url, download=False)
-
+        command = ["python", "-m", "yt-dlp", "-j", video_url]
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        meta = json.loads(result.stdout)
+        
         return {
             "success": True,
             "title": meta.get("title"),
             "duration": meta.get("duration"),
-            "stream_url": meta.get("url"),
-            "thumbnail": meta.get("thumbnail"),
+            "stream url": meta.get("url"),
         }
-
-    except Exception as e:
-        raise HTTPException(status_code=50
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.strip() if e.stderr else str(e)
+        raise HTTPException(status_code=500, detail=f"yt-dlp error: {error_msg}")
