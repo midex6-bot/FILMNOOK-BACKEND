@@ -19,7 +19,7 @@ def extract_video(data: dict):
     if not video_url:
         raise HTTPException(status_code=400, detail="URL is required")
     try:
-        command = ["yt-dlp", "-j", video_url]
+        command = ["python", "-m", "yt-dlp", "-j", video_url]
         result = subprocess.run(command, capture_output=True, text=True, check=True)
         meta = json.loads(result.stdout)
 
